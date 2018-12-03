@@ -140,8 +140,29 @@ int main(int argc, char **argv) {
   }
 
   // Get the input args
+	char *in_port, *in_path, *in_num_dispatcher, *in_num_workers, *in_dynamic_flag, *in_queue_length, *in_cache_size;
+	int port, num_dispatcher, num_workers, dynamic_flag, queue_length, cache_size;
+	in_port = argv[1];
+	in_path = argv[2];
+	in_num_dispatcher = argv[3];
+	in_num_workers = argv[4];
+	in_dynamic_flag = argv[5];
+	in_queue_length = argv[6];
+	in_cache_size = argv[7];
 
   // Perform error checks on the input arguments
+	if ((port = atoi(in_port)) == 0) {
+		printf("bad port parameter: %s", in_port);
+		return -1;
+	}
+	struct stat test_path_stat;
+	stat(in_path, &test_path_stat);
+	if (S_ISDIR(test_path_stat.st.mode) == 0) {
+		printf("bad directory path: %s", in_path);
+	}
+	if ((num_dispatcher = atoi(in_num_dispatcher)) == 0) {
+		printf("bad num_dispatcher: %s", in_num_dispatcher);
+	}
 
   // Change the current working directory to server root directory
 
