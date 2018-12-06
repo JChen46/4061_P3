@@ -24,23 +24,79 @@
 
 // structs:
 typedef struct request {
-   int fd;
-   char *request;
-	 struct request *next;
+	int fd;
+	char *request;
+	struct request *next;
 } request_t;
 
+typedef struct request_queue {
+	int size;
+	int capacity;
+	request *front;
+	request *rear;
+} request_queue_t;
+
 typedef struct cache_entry {
-    int len;
-    char *request;
-    char *content;
+	int len;
+	char *request;
+	char *content;
 } cache_entry_t;
 
+/* ************************************ Queue methods ********************************/
+void initQueue(request_queue_t *q, int capacity) {
+	q->size = 0;
+	q->capacity = capacity;
+	q->front = NULL;
+	q->rear = NULL;
+}
+
+void enqueue(request_queue_t *q, request_t *r) {
+	printf("--- enqueueing ---\n");
+	if (q->rear == NULL) {
+		q->front = q->rear = r;
+	}
+	else {
+		q->rear->next = r;
+		q->rear = r;
+	}
+	q->size++;
+}
+
+request_t* dequeue(request_queue_t *q) {
+	printf("--- dequeueing ---\n");
+	if (q->front == NULL) {
+		return NULL;
+	}
+	else {
+		request_t *returnRequest = q->front;
+		q->front = q->front->next;
+		q->size--;
+		return returnRequest;
+	}
+}
+
+int isQueueFull(request_queue_t q) {
+	return q.size == q.capacity;
+}
+
+void printQueue(request_queue_t q) {
+	printf("--- print ---\n");
+	printf("size: %d\n", q.size);
+	request_t *ptr = q.front;
+	int i = 0;
+	while (ptr != NULL) {
+		printf("%d: %d\n", i, ptr.val);
+		ptr = ptr.next;
+		i++;
+	}
+	printf("-------------\n");
+}
+/**********************************************************************************/
+
 // globals:
-request_t *req_queue_head;
-request_t *req_queue_tail;
-int num_slots_full;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t q_free_slot = PTHREAD_COND_INITIALIZER;
+request_queue_t req_q;
+static pthread_mutex_t req_q_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t req_q_free_slot = PTHREAD_COND_INITIALIZER;
 
 /* ************************ Dynamic Pool Code ***********************************/
 // Extra Credit: This function implements the policy to change the worker thread pool dynamically
@@ -117,10 +173,14 @@ void * dispatch(void *arg) {
 			}
 			else {
 				// Add the request into the queue
-				//lock
-				pthread_mutex_lock(&mutex);
-				while (
-
+				pthread_mutex_lock(&req_q_mutex);
+					if (isQueueFull(req_q)) {
+						pthread_cond_wait(&req_q_free_slot);
+					}
+					enqueue(&req_q, &request_t);
+					printQueue(req_q);
+					//maybe signal worker
+				pthread_mutex_unlock(&req_q_mutex);
 			}
 		}
 	}
@@ -198,9 +258,7 @@ int main(int argc, char **argv) {
   // Change the current working directory to server root directory
 
   // Start the server and initialize cache
-	req_queue_head = NULL;
-	req_queue_tail = NULL;
-	num_slots_full = 0;
+	init(req_q, queue_length);
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];

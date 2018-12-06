@@ -64,6 +64,7 @@ int main() {
 	Node n1 = {10, NULL};
 	enqueue(&q, &n1);
 	printQueue(&q);
+	n1.val = 9;
 	Node n2 = {25, NULL};
 	Node n3 = {26, NULL};
 	Node n4 = {27, NULL};
