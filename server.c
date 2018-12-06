@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 #define MAX_THREADS 100
-#define MAX_queue_len 100
+#define MAX_QLEN 100
 #define MAX_CE 100
 #define INVALID -1
 #define BUFF_SIZE 1024
@@ -234,9 +234,13 @@ int main(int argc, char **argv) {
 
   // Perform error checks on the input arguments
 	if ((port = atoi(in_port)) == 0) {
-		printf("bad port parameter: %s\n", in_port);
+		printf("invalid port parameter: %s\n", in_port);
 		return -1;
 	}
+  else if (port < 1025 || port > 65535){
+    printf("port number out of range (1025 - 65535): %d", port);
+    return -1;
+  }
 	struct stat test_path_stat;
 	stat(in_path, &test_path_stat);
 	if (S_ISDIR(test_path_stat.st_mode) == 0) {
@@ -244,16 +248,42 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	if ((num_dispatcher = atoi(in_num_dispatcher)) == 0) {
-		printf("bad num_dispatcher: %s\n", in_num_dispatcher);
+		printf("invalid num_dispatcher parameter: %s\n", in_num_dispatcher);
 		return -1;
 	}
-	else if (num_dispatcher > MAX_THREADS) {
-		printf("bad num_dispatcher: %d (max dispatch threads %d)\n", num_dispatcher, MAX_THREADS);
+	else if (num_dispatcher > MAX_THREADS || num_dispatcher < 0) {
+		printf("num_dispatcher out of range (1 - %d): %d\n", MAX_THREADS, num_dispatcher);
 		return -1;
 	}
+  if ((num_workers = atoi(in_num_workers)) == 0) {
+		printf("invalid num_workers parameter: %s\n", in_num_workers);
+		return -1;
+	}
+	else if (num_workers > MAX_THREADS || num_workers < 0) {
+		printf("num_workers out of range (1 - %d): %d\n", MAX_THREADS, num_workers);
+		return -1;
+	}
+  if (strcmp(in_dynamic_flag, "0") != 0 || (dynamic_flag = atoi(in_dynamic_flag)) != 0){
+    printf("invalid dynamic flag (default: 0): %s\n", in_dynamic_flag);
+    return -1;
+  }
+  if ((queue_length = atoi(in_queue_length)) == 0){
+    printf("invalid queue_length parameter: %s\n", in_queue_length);
+    return -1;
+  }
+  else if (queue_length > MAX_QLEN || queue_length < 0){
+    printf("queue_length out of range (1 - %d): %d\n", MAX_QLEN, queue_length);
+    return -1;
+  }
+  if ((cache_size = atoi(in_cache_size)) == 0){
+    printf("invalid cache_size parameter: %s\n", in_cache_size);
+    return -1;
+  }
+  else if (cache_size > MAX_QLEN || cache_size < 0){
+    printf("cache_size out of range (1 - %d): %d\n", MAX_CE, cache_size);
+    return -1;
+  }
 
-	// more checks here
-	
 	init(port);
 
   // Change the current working directory to server root directory
