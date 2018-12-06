@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 #include "util.h"
 #include <stdbool.h>
 
@@ -43,6 +44,19 @@ typedef struct cache_entry {
 } cache_entry_t;
 
 /* ************************************ Queue methods ********************************/
+void printQueue(request_queue_t q) {
+	printf("--- print ---\n");
+	printf("size: %d\n", q.size);
+	request_t *ptr = q.front;
+	int i = 0;
+	while (ptr != NULL && i < 10) {
+		printf("%d: %d\n", i, ptr->fd);
+		ptr = ptr->next;
+		i++;
+	}
+	printf("-------------\n");
+}
+
 void initQueue(request_queue_t *q, int capacity) {
 	q->size = 0;
 	q->capacity = capacity;
@@ -50,16 +64,26 @@ void initQueue(request_queue_t *q, int capacity) {
 	q->rear = NULL;
 }
 
+request_t createRequest(int fd, char *request) {
+	request_t *newRequest;
+	newRequest = (request_t *) malloc(sizeof(request_t));
+	newRequest->fd = fd;
+	return *newRequest;
+}
+
 void enqueue(request_queue_t *q, request_t *r) {
 	printf("--- enqueueing ---\n");
+	//printQueue(*q);
 	if (q->rear == NULL) {
 		q->front = q->rear = r;
 	}
 	else {
 		q->rear->next = r;
-		q->rear = r;
+		//printQueue(*q);
+		q->rear = q->rear->next;
 	}
 	q->size++;
+	//printQueue(*q);
 }
 
 request_t* dequeue(request_queue_t *q) {
@@ -78,23 +102,10 @@ request_t* dequeue(request_queue_t *q) {
 int isQueueFull(request_queue_t q) {
 	return q.size == q.capacity;
 }
-
-void printQueue(request_queue_t q) {
-	printf("--- print ---\n");
-	printf("size: %d\n", q.size);
-	request_t *ptr = q.front;
-	int i = 0;
-	while (ptr != NULL) {
-		printf("%d: %s\n", i, ptr->request);
-		ptr = ptr->next;
-		i++;
-	}
-	printf("-------------\n");
-}
 /**********************************************************************************/
 
 // globals:
-request_queue_t req_q;
+static request_queue_t req_q;
 static pthread_mutex_t req_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t req_q_free_slot = PTHREAD_COND_INITIALIZER;
 
@@ -158,7 +169,6 @@ int getCurrentTimeInMills() {
 
 // Function to receive the request from the client and add to the queue
 void * dispatch(void *arg) {
-	char buf[BUFF_SIZE];
 	while (1) {
 
 		// Accept client connection
@@ -167,18 +177,28 @@ void * dispatch(void *arg) {
 			//ignore
 		}
 		else {
+			if (req_q.front != NULL)
+				printf("print0: %s\n", req_q.front->request);
+			char buf[BUFF_SIZE];
 			// Get request from the client
 			if (get_request(fd, buf) != 0) {
 				printf("couldn't handle request for %s", buf);
 			}
 			else {
 				// Add the request into the queue
+				printf("got request: %s from %d\n", buf, fd);
+				if (req_q.front != NULL)
+					printf("front of q: %s\n", req_q.front->request);
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
-					request_t temp = {fd, buf};
+					request_t temp = createRequest(fd, buf);
+					if (req_q.front != NULL)
+						printf("print1: %s, %d\n", req_q.front->request, req_q.front->fd);
 					enqueue(&req_q, &temp);
+					if (req_q.front != NULL)
+						printf("print2: %s\n", req_q.front->request);
 					printQueue(req_q);
 					//maybe signal worker
 				pthread_mutex_unlock(&req_q_mutex);
@@ -287,8 +307,8 @@ int main(int argc, char **argv) {
 	init(port);
 
   // Change the current working directory to server root directory
-	if (chdir(path) != 0) {
-		printf("invalid path: %s\n");
+	if (chdir(in_path) != 0) {
+		printf("invalid path: %s\n", in_path);
 		return -1;
 	}
 
