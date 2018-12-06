@@ -32,8 +32,8 @@ typedef struct request {
 typedef struct request_queue {
 	int size;
 	int capacity;
-	request *front;
-	request *rear;
+	request_t *front;
+	request_t *rear;
 } request_queue_t;
 
 typedef struct cache_entry {
@@ -85,8 +85,8 @@ void printQueue(request_queue_t q) {
 	request_t *ptr = q.front;
 	int i = 0;
 	while (ptr != NULL) {
-		printf("%d: %d\n", i, ptr.val);
-		ptr = ptr.next;
+		printf("%d: %d\n", i, ptr->request);
+		ptr = ptr->next;
 		i++;
 	}
 	printf("-------------\n");
@@ -158,7 +158,7 @@ int getCurrentTimeInMills() {
 
 // Function to receive the request from the client and add to the queue
 void * dispatch(void *arg) {
-	char buf[BUF_SIZE];
+	char buf[BUFF_SIZE];
 	while (1) {
 
 		// Accept client connection
@@ -175,9 +175,10 @@ void * dispatch(void *arg) {
 				// Add the request into the queue
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
-						pthread_cond_wait(&req_q_free_slot);
+						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
-					enqueue(&req_q, &request_t);
+					request_t temp = {fd, buf};
+					enqueue(&req_q, &temp);
 					printQueue(req_q);
 					//maybe signal worker
 				pthread_mutex_unlock(&req_q_mutex);
@@ -238,7 +239,7 @@ int main(int argc, char **argv) {
 	}
 	struct stat test_path_stat;
 	stat(in_path, &test_path_stat);
-	if (S_ISDIR(test_path_stat.st.mode) == 0) {
+	if (S_ISDIR(test_path_stat.st_mode) == 0) {
 		printf("bad directory path: %s\n", in_path);
 		return -1;
 	}
@@ -258,7 +259,7 @@ int main(int argc, char **argv) {
   // Change the current working directory to server root directory
 
   // Start the server and initialize cache
-	init(req_q, queue_length);
+	initQueue(&req_q, queue_length);
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
