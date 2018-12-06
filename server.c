@@ -58,6 +58,7 @@ void printQueue(request_queue_t q) {
 }
 
 void initQueue(request_queue_t *q, int capacity) {
+	//q = malloc(capacity*sizeof(request_queue_t);
 	q->size = 0;
 	q->capacity = capacity;
 	q->front = NULL;
