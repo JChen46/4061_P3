@@ -85,7 +85,7 @@ void printQueue(request_queue_t q) {
 	request_t *ptr = q.front;
 	int i = 0;
 	while (ptr != NULL) {
-		printf("%d: %d\n", i, ptr->request);
+		printf("%d: %s\n", i, ptr->request);
 		ptr = ptr->next;
 		i++;
 	}
@@ -287,6 +287,10 @@ int main(int argc, char **argv) {
 	init(port);
 
   // Change the current working directory to server root directory
+	if (chdir(path) != 0) {
+		printf("invalid path: %s\n");
+		return -1;
+	}
 
   // Start the server and initialize cache
 	initQueue(&req_q, queue_length);
