@@ -23,9 +23,10 @@
 */
 
 // structs:
-typedef struct request_queue {
+typedef struct request {
    int fd;
-   void *request;
+   char *request;
+	 struct request *next;
 } request_t;
 
 typedef struct cache_entry {
@@ -35,7 +36,8 @@ typedef struct cache_entry {
 } cache_entry_t;
 
 // globals:
-request_t *req_q;
+request_t *req_queue_head;
+request_t *req_queue_tail;
 int num_slots_full;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t q_free_slot = PTHREAD_COND_INITIALIZER;
@@ -118,6 +120,7 @@ void * dispatch(void *arg) {
 				//lock
 				pthread_mutex_lock(&mutex);
 				while (
+
 			}
 		}
 	}
@@ -195,13 +198,14 @@ int main(int argc, char **argv) {
   // Change the current working directory to server root directory
 
   // Start the server and initialize cache
-	req_q = (request_t *) malloc(sizeof(request_t) * queue_length);
+	req_queue_head = NULL;
+	req_queue_tail = NULL;
 	num_slots_full = 0;
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
 	for (int i = 0; i < num_dispatcher; i++) {
-		if (pthread_create(&dispatch_threads[i], NULL, dispatch, (void *) num_slots_full)) {
+		if (pthread_create(&dispatch_threads[i], NULL, dispatch, NULL)) {
 			printf("error creating dispatcher thread %d\n", i);
 			return -1;
 		}
