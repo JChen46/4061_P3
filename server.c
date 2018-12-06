@@ -34,6 +34,12 @@ typedef struct cache_entry {
     char *content;
 } cache_entry_t;
 
+// globals:
+request_t *req_q;
+int num_slots_full;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t q_free_slot = PTHREAD_COND_INITIALIZER;
+
 /* ************************ Dynamic Pool Code ***********************************/
 // Extra Credit: This function implements the policy to change the worker thread pool dynamically
 // depending on the number of requests
@@ -110,6 +116,8 @@ void * dispatch(void *arg) {
 			else {
 				// Add the request into the queue
 				//lock
+				pthread_mutex_lock(&mutex);
+				while (
 			}
 		}
 	}
@@ -187,11 +195,13 @@ int main(int argc, char **argv) {
   // Change the current working directory to server root directory
 
   // Start the server and initialize cache
+	req_q = (request_t *) malloc(sizeof(request_t) * queue_length);
+	num_slots_full = 0;
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
 	for (int i = 0; i < num_dispatcher; i++) {
-		if (pthread_create(&dispatch_threads[i], NULL, dispatch, NULL)) {
+		if (pthread_create(&dispatch_threads[i], NULL, dispatch, (void *) num_slots_full)) {
 			printf("error creating dispatcher thread %d\n", i);
 			return -1;
 		}
