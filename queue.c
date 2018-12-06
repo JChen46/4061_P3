@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 
+/*
 typedef struct Node {
 	int val;
 	struct Node *next;
@@ -56,31 +58,79 @@ void printQueue(Queue *q) {
 	}
 	printf("-------------\n");
 }
+*/
+
+typedef struct Node {
+	int val;
+} Node;
+
+typedef struct Queue {
+	int size, capacity, front, rear;
+	Node *n;
+} Queue;
+
+void initQueue(Queue *q, int capacity) {
+	q->n = malloc(capacity * sizeof(Node));
+	q->capacity = capacity;
+	q->size = 0;
+	q->front = 0;
+	q->rear = 0;
+}
+
+void enqueue(Queue *q, Node n) {
+	q->n[q->rear] = n;
+	q->rear = (q->rear + 1) % q->capacity;
+	q->size++;
+}
+
+Node dequeue(Queue *q) {
+	Node returnNode = q->n[q->front];
+	q->front = (q->front + 1) % q->capacity;
+	q->size--;
+	return returnNode;
+}
+
+int isQueueFull(Queue q) {
+	return q.size == q.capacity;
+}
+
+int isQueueEmpty(Queue q) {
+	return q.size == 0;
+}
+
+void printQueue(Queue q) {
+	printf("--- print ---\n");
+	printf("size: %d\n", q.size);
+	for (int i = q.front; i != q.rear; i = (i + 1) % q.capacity) {
+		printf("%d: %d\n", i, q.n[i].val);
+	}
+	printf("-------------\n");
+}
 
 int main() {
 	Queue q;
-	initQueue(&q);
-	printQueue(&q);
-	Node n1 = {10, NULL};
-	enqueue(&q, &n1);
-	printQueue(&q);
+	initQueue(&q, 4);
+	printQueue(q);
+	Node n1 = {10};
+	enqueue(&q, n1);
+	printQueue(q);
 	n1.val = 9;
-	Node n2 = {25, NULL};
-	Node n3 = {26, NULL};
-	Node n4 = {27, NULL};
-	enqueue(&q, &n2);
-	enqueue(&q, &n3);
-	enqueue(&q, &n4);
-	printQueue(&q);
+	Node n2 = {25};
+	Node n3 = {26};
+	Node n4 = {27};
+	enqueue(&q, n2);
+	enqueue(&q, n3);
+	enqueue(&q, n4);
+	printf("full? %d\n", isQueueFull(q));
+	printQueue(q);
 	dequeue(&q);
-	printQueue(&q);
+	printQueue(q);
 	dequeue(&q);
-	printQueue(&q);
+	printQueue(q);
 	dequeue(&q);
-	printQueue(&q);
+	printQueue(q);
 	dequeue(&q);
-	printQueue(&q);
-	dequeue(&q);
-	printQueue(&q);
+	printQueue(q);
+	printf("empty? %d\n", isQueueEmpty(q));
 	return 0;
 }

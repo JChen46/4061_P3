@@ -27,14 +27,11 @@
 typedef struct request {
 	int fd;
 	char *request;
-	struct request *next;
 } request_t;
 
 typedef struct request_queue {
-	int size;
-	int capacity;
-	request_t *front;
-	request_t *rear;
+	int size, capacity, front, rear;
+	request_t *arr;
 } request_queue_t;
 
 typedef struct cache_entry {
@@ -47,61 +44,45 @@ typedef struct cache_entry {
 void printQueue(request_queue_t q) {
 	printf("--- print ---\n");
 	printf("size: %d\n", q.size);
-	request_t *ptr = q.front;
-	int i = 0;
-	while (ptr != NULL && i < 10) {
-		printf("%d: %d\n", i, ptr->fd);
-		ptr = ptr->next;
-		i++;
+	for (int i = q.front; i != q.rear; i = (i + 1) % q.capacity) {
+		printf("%d: %d, %s\n", i, q.arr[i].fd, q.arr[i].request);
+		fflush(stdout);
 	}
 	printf("-------------\n");
 }
 
 void initQueue(request_queue_t *q, int capacity) {
-	//q = malloc(capacity*sizeof(request_queue_t);
-	q->size = 0;
+	q->arr = malloc(capacity * sizeof(request_t));
+	for (int i = 0; i < capacity; i++) {
+		q->arr[i].request = malloc(BUFF_SIZE * sizeof(char));
+	}
 	q->capacity = capacity;
-	q->front = NULL;
-	q->rear = NULL;
+	q->size = 0;
+	q->front = 0;
+	q->rear = 0;
 }
 
-request_t createRequest(int fd, char *request) {
-	request_t *newRequest;
-	newRequest = (request_t *) malloc(sizeof(request_t));
-	newRequest->fd = fd;
-	return *newRequest;
-}
-
-void enqueue(request_queue_t *q, request_t *r) {
+void enqueue(request_queue_t *q, request_t r) {
 	printf("--- enqueueing ---\n");
-	//printQueue(*q);
-	if (q->rear == NULL) {
-		q->front = q->rear = r;
-	}
-	else {
-		q->rear->next = r;
-		//printQueue(*q);
-		q->rear = q->rear->next;
-	}
+	memcpy(&q->arr[q->rear], &r, sizeof(request_t));
+	q->rear = (q->rear + 1) % q->capacity;
 	q->size++;
-	//printQueue(*q);
 }
 
-request_t* dequeue(request_queue_t *q) {
+request_t dequeue(request_queue_t *q) {
 	printf("--- dequeueing ---\n");
-	if (q->front == NULL) {
-		return NULL;
-	}
-	else {
-		request_t *returnRequest = q->front;
-		q->front = q->front->next;
-		q->size--;
-		return returnRequest;
-	}
+	request_t returnNode = q->arr[q->front];
+	q->front = (q->front + 1) % q->capacity;
+	q->size--;
+	return returnNode;
 }
 
 int isQueueFull(request_queue_t q) {
 	return q.size == q.capacity;
+}
+
+int isQueueEmpty(request_queue_t q) {
+	return q.size == 0;
 }
 /**********************************************************************************/
 
@@ -178,8 +159,7 @@ void * dispatch(void *arg) {
 			//ignore
 		}
 		else {
-			if (req_q.front != NULL)
-				printf("print0: %s\n", req_q.front->request);
+			printf("print1: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 			char buf[BUFF_SIZE];
 			// Get request from the client
 			if (get_request(fd, buf) != 0) {
@@ -188,18 +168,21 @@ void * dispatch(void *arg) {
 			else {
 				// Add the request into the queue
 				printf("got request: %s from %d\n", buf, fd);
-				if (req_q.front != NULL)
-					printf("front of q: %s\n", req_q.front->request);
+				if (strcmp(buf, "test") == 0) {
+					request_t temp;
+					temp = dequeue(&req_q);
+					printf("dequeued %d, %s from queue", temp.fd, temp.request);
+				}
+				printf("print2: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
-					request_t temp = createRequest(fd, buf);
-					if (req_q.front != NULL)
-						printf("print1: %s, %d\n", req_q.front->request, req_q.front->fd);
-					enqueue(&req_q, &temp);
-					if (req_q.front != NULL)
-						printf("print2: %s\n", req_q.front->request);
+					request_t temp = {fd, buf};
+					printf("print3: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
+					enqueue(&req_q, temp);
+					printf("print4: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
+					strcpy(buf, "haha you loser");
 					printQueue(req_q);
 					//maybe signal worker
 				pthread_mutex_unlock(&req_q_mutex);
