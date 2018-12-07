@@ -26,7 +26,7 @@
 // structs:
 typedef struct request {
 	int fd;
-	char *request;
+	char request[BUFF_SIZE];
 } request_t;
 
 typedef struct request_queue {
@@ -46,16 +46,12 @@ void printQueue(request_queue_t q) {
 	printf("size: %d\n", q.size);
 	for (int i = q.front; i != q.rear; i = (i + 1) % q.capacity) {
 		printf("%d: %d, %s\n", i, q.arr[i].fd, q.arr[i].request);
-		fflush(stdout);
 	}
 	printf("-------------\n");
 }
 
 void initQueue(request_queue_t *q, int capacity) {
 	q->arr = malloc(capacity * sizeof(request_t));
-	for (int i = 0; i < capacity; i++) {
-		q->arr[i].request = malloc(BUFF_SIZE * sizeof(char));
-	}
 	q->capacity = capacity;
 	q->size = 0;
 	q->front = 0;
@@ -168,21 +164,23 @@ void * dispatch(void *arg) {
 			else {
 				// Add the request into the queue
 				printf("got request: %s from %d\n", buf, fd);
-				if (strcmp(buf, "test") == 0) {
+				if (strcmp(buf, "/test") == 0) {
 					request_t temp;
 					temp = dequeue(&req_q);
-					printf("dequeued %d, %s from queue", temp.fd, temp.request);
+					printf("dequeued %d, %s from queue\n", temp.fd, temp.request);
+					continue;
 				}
 				printf("print2: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
-					request_t temp = {fd, buf};
+					request_t temp;
+					temp.fd = fd;
+					strcpy(temp.request, buf);
 					printf("print3: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 					enqueue(&req_q, temp);
 					printf("print4: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
-					strcpy(buf, "haha you loser");
 					printQueue(req_q);
 					//maybe signal worker
 				pthread_mutex_unlock(&req_q_mutex);
