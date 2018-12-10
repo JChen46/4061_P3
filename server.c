@@ -58,6 +58,11 @@ void initQueue(request_queue_t *q, int capacity) {
 	q->rear = 0;
 }
 
+void deleteQueue(request_queue_t *q) {
+	free(q->arr);
+	q = NULL;
+}
+
 void enqueue(request_queue_t *q, request_t r) {
 	printf("--- enqueueing ---\n");
 	memcpy(&q->arr[q->rear], &r, sizeof(request_t));
@@ -86,6 +91,8 @@ int isQueueEmpty(request_queue_t q) {
 static request_queue_t req_q;
 static pthread_mutex_t req_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t req_q_free_slot = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t req_q_full_slot = PTHREAD_COND_INITIALIZER;
+static cache_entry_t *cache;
 
 /* ************************ Dynamic Pool Code ***********************************/
 // Extra Credit: This function implements the policy to change the worker thread pool dynamically
@@ -103,10 +110,11 @@ void * dynamic_pool_size_update(void *arg) {
 // Function to check whether the given request is present in cache
 int getCacheIndex(char *request){
   /// return the index if the request is present in the cache
+	return -1;
 }
 
 // Function to add the request and its file content into the cache
-void addIntoCache(char *mybuf, char *memory , int memory_size){
+void addIntoCache(char *request, char *content, int len){
   // It should add the request at an index according to the cache replacement policy
   // Make sure to allocate/free memeory when adding or replacing cache entries
 }
@@ -117,14 +125,42 @@ void deleteCache(){
 }
 
 // Function to initialize the cache
-void initCache(){
+void initCache(int size){
   // Allocating memory and initializing the cache array
+	cache = malloc(sizeof(cache_entry_t) * size);
+}
+
+// removes leading slash
+void removeLeadingSlash(char *in_request, char *request) {
+	size_t str_len = strlen(in_request) + 1;
+	for (int i = 1; i < str_len; i++) {
+		request[i - 1] = in_request[i];
+	}
+}
+
+// get size of file to choose size of buffer when reading file
+int sizeOfFile(char *path) {
+	struct stat stat_buf;
+	if (stat(path, &stat_buf) != 0) {
+		return -1;
+	}
+	else {
+		return stat_buf.st_size;
+	}
 }
 
 // Function to open and read the file from the disk into the memory
 // Add necessary arguments as needed
-int readFromDisk(/*necessary arguments*/) {
+int readFromDisk(char *request, char *buf, int size) {
   // Open and read the contents of file given the request
+	int fd = open(request, O_RDONLY);
+	int read_size;
+	if ((read_size = read(fd, buf, size)) == -1) {
+		return 0;
+	}
+	else {
+		return 1;
+	}
 }
 
 /**********************************************************************************/
@@ -137,7 +173,7 @@ char* getContentType(char * mybuf) {
 }
 
 // This function returns the current time in milliseconds
-int getCurrentTimeInMills() {
+long int getCurrentTimeInMicro() {
   struct timeval curr_time;
   gettimeofday(&curr_time, NULL);
   return curr_time.tv_usec;
@@ -155,7 +191,6 @@ void * dispatch(void *arg) {
 			//ignore
 		}
 		else {
-			printf("print1: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 			char buf[BUFF_SIZE];
 			// Get request from the client
 			if (get_request(fd, buf) != 0) {
@@ -170,20 +205,19 @@ void * dispatch(void *arg) {
 					printf("dequeued %d, %s from queue\n", temp.fd, temp.request);
 					continue;
 				}
-				printf("print2: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
 					request_t temp;
 					temp.fd = fd;
-					strcpy(temp.request, buf);
-					printf("print3: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
+					removeLeadingSlash(buf, temp.request);
+					//the above replaced this: strcpy(temp.request, buf);
 					enqueue(&req_q, temp);
-					printf("print4: %s, %d\n", req_q.arr[req_q.front].request, req_q.arr[req_q.front].fd);
 					printQueue(req_q);
-					//maybe signal worker
+					pthread_cond_signal(&req_q_full_slot);
 				pthread_mutex_unlock(&req_q_mutex);
+				printf("a");
 			}
 		}
 	}
@@ -195,17 +229,50 @@ void * dispatch(void *arg) {
 // Function to retrieve the request from the queue, process it and then return a result to the client
 void * worker(void *arg) {
 
-   while (1) {
+  while (1) {
+    // Get the request from the queue
+		request_t req;
+		pthread_mutex_lock(&req_q_mutex);
+			if (isQueueEmpty(req_q)) {
+				pthread_cond_wait(&req_q_full_slot, &req_q_mutex);
+			}
+			req = dequeue(&req_q);
+			printf("got %s from the queue\n", req.request);
+			pthread_cond_signal(&req_q_free_slot);
+		pthread_mutex_unlock(&req_q_mutex);
 
     // Start recording time
-
-    // Get the request from the queue
+		long int startTime = getCurrentTimeInMicro();
 
     // Get the data from the disk or the cache
+		int cache_index = getCacheIndex(req.request);
+		int size;
+		if (cache_index != -1) {
+			return_result(req.fd, getContentType(req.request), cache[cache_index].content, cache[cache_index].len);
+		}
+		else {
+			if ((size = sizeOfFile(req.request)) == -1) {
+				printf("couldn't find file %s\n", req.request);
+				return_error(req.fd, "couldn't find file");
+			}
+			else {
+				char buf[size];
+				if (readFromDisk(req.request, buf, size) == 0) {
+					printf("error reading from disk file %s\n", req.request);
+					return_error(req.fd, "error reading from disk");
+				}
+				else {
+					return_result(req.fd, getContentType(req.request), buf, size);
+					addIntoCache(req.request, buf, size);
+				}
+			}
+		}
 
     // Stop recording the time
+		long int endTime = getCurrentTimeInMicro();
 
     // Log the request into the file and terminal
+		printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", 0, 0, req.fd, req.request, size, endTime - startTime, "MISS");
 
     // return the result
   }
@@ -296,6 +363,7 @@ int main(int argc, char **argv) {
 
   // Start the server and initialize cache
 	initQueue(&req_q, queue_length);
+	initCache(cache_size);
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
@@ -304,7 +372,7 @@ int main(int argc, char **argv) {
 			printf("error creating dispatcher thread %d\n", i);
 			return -1;
 		}
-		if (pthread_join(dispatch_threads[i], NULL)) {
+		if (pthread_detach(dispatch_threads[i])) {
 			printf("error joining dispatcher thread %d\n", i);
 			return -1;
 		}
@@ -316,12 +384,33 @@ int main(int argc, char **argv) {
 			printf("error creating worker thread %d\n", i);
 			return -1;
 		}
-		if (pthread_join(worker_threads[i], NULL)) {
+		if (pthread_detach(worker_threads[i])) {
 			printf("error joining worker thread %d\n", i);
 			return -1;
 		}
 	}
+	/*
+	char *in_test = "/image/gif/0.gif";
+	char test[strlen(in_test)];
+	removeLeadingSlash(in_test, test);
+	int size;
+	if ((size = sizeOfFile(test)) == -1) {
+		printf("couldn't find file %s\n", test);
+	}
+	else {
+		char buf[size];
+		if (readFromDisk(test, buf, size) == 0) {
+			printf("error reading from disk file %s\n", test);
+		}
+		else {
+			printf("result: \n%s\n", buf);
+		}
+	}
+	*/
+	while(1);
 
   // Clean up
+	deleteQueue(&req_q);
+	deleteCache(cache);
   return 0;
 }
