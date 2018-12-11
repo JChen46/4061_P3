@@ -424,7 +424,7 @@ int main(int argc, char **argv) {
 	}
 
 	while(1);
-
+  //sigaction(sigint
   // Clean up
 	deleteQueue(&req_q);
 	deleteCache(cache);
