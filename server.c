@@ -22,10 +22,13 @@
 /*
   THE CODE STRUCTURE GIVEN BELOW IS JUST A SUGESTION. FEEL FREE TO MODIFY AS NEEDED
 */
-
+int cache_size;
+int cache_counter = 0;
+int request_counter = 0;
 // structs:
 typedef struct request {
 	int fd;
+	int id;
 	char request[BUFF_SIZE];
 } request_t;
 
@@ -64,6 +67,7 @@ void deleteQueue(request_queue_t *q) {
 }
 
 void enqueue(request_queue_t *q, request_t r) {
+	request_counter++;
 	printf("--- enqueueing ---\n");
 	memcpy(&q->arr[q->rear], &r, sizeof(request_t));
 	q->rear = (q->rear + 1) % q->capacity;
@@ -109,7 +113,12 @@ void * dynamic_pool_size_update(void *arg) {
 
 // Function to check whether the given request is present in cache
 int getCacheIndex(char *request){
-  /// return the index if the request is present in the cache
+	int i;
+	for (i = 0; i < cache_size; i++){
+		if (strcmp(request.request, cache[i].request) == 0){
+			return i;
+		}
+	}
 	return -1;
 }
 
@@ -117,17 +126,33 @@ int getCacheIndex(char *request){
 void addIntoCache(char *request, char *content, int len){
   // It should add the request at an index according to the cache replacement policy
   // Make sure to allocate/free memeory when adding or replacing cache entries
+	free(cache[cache_counter]);
+	cache[cache_counter].content = malloc(len);
+	cache[cache_counter].request[BUFF_SIZE];
+	cache[cache_counter].len = len;
+	if (strcpy(cache[cache_counter].request, request) != 0){
+		printf("caching request problem\n");
+	}
+	if (strcpy(cache[cache_counter].content, content) != 0){
+		printf("caching content problem\n");
+	}
+	cache_counter = (cache_counter + 1) % cache_size;
 }
 
 // clear the memory allocated to the cache
 void deleteCache(){
-  // De-allocate/free the cache memory
+  int i;
+	for (i = 0; i < cache_size; i++){
+		free(cache[i]);
+	}
+	free(cache);
 }
 
 // Function to initialize the cache
 void initCache(int size){
   // Allocating memory and initializing the cache array
 	cache = malloc(sizeof(cache_entry_t) * size);
+	cache_size = size;
 }
 
 // removes leading slash
@@ -170,6 +195,20 @@ int readFromDisk(char *request, char *buf, int size) {
 char* getContentType(char * mybuf) {
   // Should return the content type based on the file type in the request
   // (See Section 5 in Project description for more details)
+	char *temp = strrchr(mybuf,'.');
+	if (temp == NULL){
+		return "text/plain";
+	}
+	if (strcmp(temp,".html") == 0 || strcmp(temp,".htm") == 0){
+		return "text/html";
+	}
+	if (strcmp(temp,".jpg") == 0){
+		return "image/jpeg";
+	}
+	if (strcmp(temp,".gif") == 0){
+		return "image/gif";
+	}
+	return "text/plain";
 }
 
 // This function returns the current time in milliseconds
@@ -211,6 +250,7 @@ void * dispatch(void *arg) {
 					}
 					request_t temp;
 					temp.fd = fd;
+					temp.id = request_counter;
 					removeLeadingSlash(buf, temp.request);
 					//the above replaced this: strcpy(temp.request, buf);
 					enqueue(&req_q, temp);
