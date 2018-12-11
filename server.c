@@ -316,8 +316,9 @@ void * worker(void *arg) {
 
 void terminate(int signo){
 	deleteQueue(&req_q);
+	printf("--queue deleted--\n");
 	deleteCache(cache);
-	printf("queue and cache deleted... process termination successful\n");
+	printf("--cache deleted--\n--process termination successful--\n");
 	exit(0);
 }
 /**********************************************************************************/
