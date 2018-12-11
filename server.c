@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include "util.h"
 #include <stdbool.h>
+#include <signal.h>
 
 #define MAX_THREADS 100
 #define MAX_QLEN 100
@@ -311,7 +312,14 @@ void * worker(void *arg) {
   }
   return NULL;
 }
+/**********************************************************************************/
 
+void terminate(int signo){
+	deleteQueue(&req_q);
+	deleteCache(cache);
+	printf("queue and cache deleted... process termination successful\n");
+	exit(0);
+}
 /**********************************************************************************/
 
 int main(int argc, char **argv) {
@@ -423,10 +431,15 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	//set ^c to clean up then exit process
+	struct sigaction act;
+	act.sa_handler = terminate;
+	sigfillset(&act.sa_mask);
+	sigaction(SIGINT, &act, NULL);
+
+	//keep blocking until ^c, then process cleans up and exits
 	while(1);
-  //sigaction(sigint
-  // Clean up
-	deleteQueue(&req_q);
-	deleteCache(cache);
+
+	//never reached
   return 0;
 }
