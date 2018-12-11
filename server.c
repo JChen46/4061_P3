@@ -39,7 +39,7 @@ typedef struct request_queue {
 
 typedef struct cache_entry {
 	int len;
-	char *request;
+	char request[BUFF_SIZE];
 	char *content;
 } cache_entry_t;
 
@@ -68,14 +68,12 @@ void deleteQueue(request_queue_t *q) {
 
 void enqueue(request_queue_t *q, request_t r) {
 	request_counter++;
-	printf("--- enqueueing ---\n");
 	memcpy(&q->arr[q->rear], &r, sizeof(request_t));
 	q->rear = (q->rear + 1) % q->capacity;
 	q->size++;
 }
 
 request_t dequeue(request_queue_t *q) {
-	printf("--- dequeueing ---\n");
 	request_t returnNode = q->arr[q->front];
 	q->front = (q->front + 1) % q->capacity;
 	q->size--;
@@ -115,7 +113,7 @@ void * dynamic_pool_size_update(void *arg) {
 int getCacheIndex(char *request){
 	int i;
 	for (i = 0; i < cache_size; i++){
-		if (strcmp(request.request, cache[i].request) == 0){
+		if (strcmp(request, cache[i].request) == 0){
 			return i;
 		}
 	}
@@ -126,16 +124,11 @@ int getCacheIndex(char *request){
 void addIntoCache(char *request, char *content, int len){
   // It should add the request at an index according to the cache replacement policy
   // Make sure to allocate/free memeory when adding or replacing cache entries
-	free(cache[cache_counter]);
+	free(cache[cache_counter].content);
 	cache[cache_counter].content = malloc(len);
-	cache[cache_counter].request[BUFF_SIZE];
 	cache[cache_counter].len = len;
-	if (strcpy(cache[cache_counter].request, request) != 0){
-		printf("caching request problem\n");
-	}
-	if (strcpy(cache[cache_counter].content, content) != 0){
-		printf("caching content problem\n");
-	}
+	strcpy(cache[cache_counter].request, request);
+	strcpy(cache[cache_counter].content, content);
 	cache_counter = (cache_counter + 1) % cache_size;
 }
 
@@ -143,7 +136,7 @@ void addIntoCache(char *request, char *content, int len){
 void deleteCache(){
   int i;
 	for (i = 0; i < cache_size; i++){
-		free(cache[i]);
+		free(cache[i].content);
 	}
 	free(cache);
 }
@@ -236,28 +229,24 @@ void * dispatch(void *arg) {
 				printf("couldn't handle request for %s", buf);
 			}
 			else {
-				// Add the request into the queue
-				printf("got request: %s from %d\n", buf, fd);
-				if (strcmp(buf, "/test") == 0) {
-					request_t temp;
-					temp = dequeue(&req_q);
-					printf("dequeued %d, %s from queue\n", temp.fd, temp.request);
+				printf("got request: %s\n", buf);
+				request_t temp;
+				temp.fd = fd;
+				temp.id = request_counter;
+				removeLeadingSlash(buf, temp.request);
+				if (strcmp(temp.request, "") == 0) {
+					printf("hey mambo mambo italiano\n");
+					return_error(fd, "hey mambo mambo italiano");
 					continue;
 				}
+				// Add the request into the queue
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
-					request_t temp;
-					temp.fd = fd;
-					temp.id = request_counter;
-					removeLeadingSlash(buf, temp.request);
-					//the above replaced this: strcpy(temp.request, buf);
 					enqueue(&req_q, temp);
-					printQueue(req_q);
 					pthread_cond_signal(&req_q_full_slot);
 				pthread_mutex_unlock(&req_q_mutex);
-				printf("a");
 			}
 		}
 	}
@@ -268,6 +257,7 @@ void * dispatch(void *arg) {
 
 // Function to retrieve the request from the queue, process it and then return a result to the client
 void * worker(void *arg) {
+	int thread_id = *((int*)arg);
 
   while (1) {
     // Get the request from the queue
@@ -277,7 +267,6 @@ void * worker(void *arg) {
 				pthread_cond_wait(&req_q_full_slot, &req_q_mutex);
 			}
 			req = dequeue(&req_q);
-			printf("got %s from the queue\n", req.request);
 			pthread_cond_signal(&req_q_free_slot);
 		pthread_mutex_unlock(&req_q_mutex);
 
@@ -285,10 +274,13 @@ void * worker(void *arg) {
 		long int startTime = getCurrentTimeInMicro();
 
     // Get the data from the disk or the cache
+		char christmas[5];
 		int cache_index = getCacheIndex(req.request);
 		int size;
 		if (cache_index != -1) {
-			return_result(req.fd, getContentType(req.request), cache[cache_index].content, cache[cache_index].len);
+			strcpy(christmas, "HIT");
+			size = cache[cache_index].len;
+			return_result(req.fd, getContentType(req.request), cache[cache_index].content, size);
 		}
 		else {
 			if ((size = sizeOfFile(req.request)) == -1) {
@@ -302,6 +294,7 @@ void * worker(void *arg) {
 					return_error(req.fd, "error reading from disk");
 				}
 				else {
+					strcpy(christmas, "MISS");
 					return_result(req.fd, getContentType(req.request), buf, size);
 					addIntoCache(req.request, buf, size);
 				}
@@ -312,7 +305,7 @@ void * worker(void *arg) {
 		long int endTime = getCurrentTimeInMicro();
 
     // Log the request into the file and terminal
-		printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", 0, 0, req.fd, req.request, size, endTime - startTime, "MISS");
+		printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", thread_id, req.id, req.fd, req.request, size, endTime - startTime, christmas);
 
     // return the result
   }
@@ -408,7 +401,7 @@ int main(int argc, char **argv) {
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
 	for (int i = 0; i < num_dispatcher; i++) {
-		if (pthread_create(&dispatch_threads[i], NULL, dispatch, NULL)) {
+		if (pthread_create(&dispatch_threads[i], NULL, dispatch, (void*)&i)) {
 			printf("error creating dispatcher thread %d\n", i);
 			return -1;
 		}
@@ -420,7 +413,7 @@ int main(int argc, char **argv) {
 
 	pthread_t worker_threads[num_workers];
 	for (int i = 0; i < num_workers; i++) {
-		if (pthread_create(&worker_threads[i], NULL, worker, NULL)) {
+		if (pthread_create(&worker_threads[i], NULL, worker, (void*)&i)) {
 			printf("error creating worker thread %d\n", i);
 			return -1;
 		}
@@ -429,24 +422,7 @@ int main(int argc, char **argv) {
 			return -1;
 		}
 	}
-	/*
-	char *in_test = "/image/gif/0.gif";
-	char test[strlen(in_test)];
-	removeLeadingSlash(in_test, test);
-	int size;
-	if ((size = sizeOfFile(test)) == -1) {
-		printf("couldn't find file %s\n", test);
-	}
-	else {
-		char buf[size];
-		if (readFromDisk(test, buf, size) == 0) {
-			printf("error reading from disk file %s\n", test);
-		}
-		else {
-			printf("result: \n%s\n", buf);
-		}
-	}
-	*/
+
 	while(1);
 
   // Clean up
