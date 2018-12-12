@@ -114,7 +114,7 @@ void * dynamic_pool_size_update(void *arg) {
 int getCacheIndex(char *request){
 	int i;
 	for (i = 0; i < cache_size; i++){
-		if (strcmp(request, cache[i].request) == 0){
+		if (strcmp(cache[i].request, "") != 0 && strcmp(request, cache[i].request) == 0){
 			return i;
 		}
 	}
@@ -235,11 +235,6 @@ void * dispatch(void *arg) {
 				temp.fd = fd;
 				temp.id = request_counter;
 				removeLeadingSlash(buf, temp.request);
-				if (strcmp(temp.request, "") == 0) {
-					printf("hey mambo mambo italiano\n");
-					return_error(fd, "hey mambo mambo italiano");
-					continue;
-				}
 				// Add the request into the queue
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
@@ -261,23 +256,24 @@ void * worker(void *arg) {
 	int thread_id = *((int*)arg);
 
   while (1) {
+		long int startTime;
     // Get the request from the queue
 		request_t req;
 		pthread_mutex_lock(&req_q_mutex);
 			if (isQueueEmpty(req_q)) {
 				pthread_cond_wait(&req_q_full_slot, &req_q_mutex);
 			}
+			startTime = getCurrentTimeInMicro();
 			req = dequeue(&req_q);
 			pthread_cond_signal(&req_q_free_slot);
 		pthread_mutex_unlock(&req_q_mutex);
 
-    // Start recording time
-		long int startTime = getCurrentTimeInMicro();
-
     // Get the data from the disk or the cache
-		char christmas[5];
+		char christmas[6];
 		int cache_index = getCacheIndex(req.request);
 		int size;
+		int error = 0;
+		char error_buf[BUFF_SIZE];
 		if (cache_index != -1) {
 			strcpy(christmas, "HIT");
 			size = cache[cache_index].len;
@@ -286,13 +282,15 @@ void * worker(void *arg) {
 		else {
 			if ((size = sizeOfFile(req.request)) == -1) {
 				printf("couldn't find file %s\n", req.request);
-				return_error(req.fd, "couldn't find file");
+				error = 1;
+				return_error(req.fd, error_buf);
 			}
 			else {
 				char buf[size];
 				if (readFromDisk(req.request, buf, size) == 0) {
 					printf("error reading from disk file %s\n", req.request);
-					return_error(req.fd, "error reading from disk");
+					error = 1;
+					return_error(req.fd, error_buf);
 				}
 				else {
 					strcpy(christmas, "MISS");
@@ -306,7 +304,13 @@ void * worker(void *arg) {
 		long int endTime = getCurrentTimeInMicro();
 
     // Log the request into the file and terminal
-		printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", thread_id, req.id, req.fd, req.request, size, endTime - startTime, christmas);
+		printf("error_buf: %s\n", error_buf);
+		if (error) {
+			printf("[%d][%d][%d][%s][%s][%ldus][ERROR]\n", thread_id, req.id, req.fd, req.request, error_buf, endTime - startTime);
+		}
+		else {
+			printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", thread_id, req.id, req.fd, req.request, size, endTime - startTime, christmas);
+		}
 
     // return the result
   }
