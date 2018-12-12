@@ -96,6 +96,7 @@ static pthread_mutex_t req_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t req_q_free_slot = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t req_q_full_slot = PTHREAD_COND_INITIALIZER;
 static cache_entry_t *cache;
+static FILE *fp;
 
 /* ************************ Dynamic Pool Code ***********************************/
 // Extra Credit: This function implements the policy to change the worker thread pool dynamically
@@ -230,7 +231,7 @@ void * dispatch(void *arg) {
 				printf("couldn't handle request for %s", buf);
 			}
 			else {
-				printf("got request: %s\n", buf);
+				//printf("got request: %s\n", buf);
 				request_t temp;
 				temp.fd = fd;
 				temp.id = request_counter;
@@ -254,6 +255,10 @@ void * dispatch(void *arg) {
 // Function to retrieve the request from the queue, process it and then return a result to the client
 void * worker(void *arg) {
 	int thread_id = *((int*)arg);
+	fp = fopen("webserver_log", "a");
+	if (fp == NULL) {
+		printf("error opening webserver_log file: %d\n", errno);
+	}
 
   while (1) {
 		long int startTime;
@@ -281,14 +286,16 @@ void * worker(void *arg) {
 		}
 		else {
 			if ((size = sizeOfFile(req.request)) == -1) {
-				printf("couldn't find file %s\n", req.request);
+				printf("couldn't find file: %s\n", req.request);
+				strcpy(error_buf, "couldn't find file.");
 				error = 1;
 				return_error(req.fd, error_buf);
 			}
 			else {
 				char buf[size];
 				if (readFromDisk(req.request, buf, size) == 0) {
-					printf("error reading from disk file %s\n", req.request);
+					printf("error reading from disk file: %s\n", req.request);
+					strcpy(error_buf, "error reading from disk.");
 					error = 1;
 					return_error(req.fd, error_buf);
 				}
@@ -304,12 +311,13 @@ void * worker(void *arg) {
 		long int endTime = getCurrentTimeInMicro();
 
     // Log the request into the file and terminal
-		printf("error_buf: %s\n", error_buf);
 		if (error) {
 			printf("[%d][%d][%d][%s][%s][%ldus][ERROR]\n", thread_id, req.id, req.fd, req.request, error_buf, endTime - startTime);
+			fprintf(fp, "[%d][%d][%d][%s][%s][%ldus][ERROR]\n", thread_id, req.id, req.fd, req.request, error_buf, endTime - startTime);
 		}
 		else {
 			printf("[%d][%d][%d][%s][%d][%ldus][%s]\n", thread_id, req.id, req.fd, req.request, size, endTime - startTime, christmas);
+			fprintf(fp, "[%d][%d][%d][%s][%d][%ldus][%s]\n", thread_id, req.id, req.fd, req.request, size, endTime - startTime, christmas);
 		}
 
     // return the result
@@ -320,8 +328,9 @@ void * worker(void *arg) {
 
 void terminate(int signo){
 	deleteQueue(&req_q);
-	printf("--queue deleted--\n");
+	printf("\n--queue deleted--\n");
 	deleteCache(cache);
+	fclose(fp);
 	printf("--cache deleted--\n--process termination successful--\n");
 	exit(0);
 }
@@ -398,6 +407,8 @@ int main(int argc, char **argv) {
     printf("cache_size out of range (1 - %d): %d\n", MAX_CE, cache_size);
     return -1;
   }
+
+	printf("starting server...\n");
 
 	init(port);
 
