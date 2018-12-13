@@ -26,6 +26,7 @@
 int cache_size;
 int cache_counter = 0;
 int request_counter = 0;
+int lru_counter = 1;
 // structs:
 typedef struct request {
 	int fd;
@@ -42,6 +43,7 @@ typedef struct cache_entry {
 	int len;
 	char request[BUFF_SIZE];
 	char *content;
+	int lru;
 } cache_entry_t;
 
 /* ************************************ Queue methods ********************************/
@@ -128,12 +130,27 @@ int getCacheIndex(char *request){
 void addIntoCache(char *request, char *content, int len){
   // It should add the request at an index according to the cache replacement policy
   // Make sure to allocate/free memeory when adding or replacing cache entries
-	free(cache[cache_counter].content);
+	/*free(cache[cache_counter].content);
 	cache[cache_counter].content = malloc(len);
 	cache[cache_counter].len = len;
 	strcpy(cache[cache_counter].request, request);
 	memcpy(cache[cache_counter].content, content, len);
-	cache_counter = (cache_counter + 1) % cache_size;
+	cache_counter = (cache_counter + 1) % cache_size;*/
+	int evict_lru = INT_MAX;
+	int evict_line = 0;
+	int i;
+	for (i = 0; i < cache_size; i++){
+		if cache[i].lru < evict_lru){
+			evict_line = i;
+			evict_lru = cache[i].lru;
+		}
+	}
+	cache[evict_line].lru = lru_counter++;
+	free(cache[evict_line].content);
+	cache[evict_line].content = malloc(len);
+	cache[evict_line].len = len;
+	strcpy(cache[evict_line].request, request);
+	memcpy(cache[evict_line].content, content, len);
 }
 
 // clear the memory allocated to the cache
@@ -149,6 +166,10 @@ void deleteCache(){
 void initCache(int size){
   // Allocating memory and initializing the cache array
 	cache = malloc(sizeof(cache_entry_t) * size);
+	int i;
+	for (i = 0; i < size; i++){
+		cache[i].lru = 0;
+	}
 	cache_size = size;
 }
 
