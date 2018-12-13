@@ -18,7 +18,7 @@ Caching Mechanism:
 We also implemented a cache system that stores the requests and its file content. For this we used an array of memory allocated entries
 that uses the counter 'cache_counter' to keep track of the current position in the cache array. The cache is utilized in the worker threads,
 where the thread first checks if the request is already present in the cache, logging a HIT or MISS based on the result. If not in the cache,
-then the data is retrieved from the disk instead. We also implemented a LRU replacement policy 
+then the data is retrieved from the disk instead. We also implemented a LRU replacement policy that removes the least recently used request entry when the cache is full.
 
 Dynamic worker thread pool size:
 Did not do
