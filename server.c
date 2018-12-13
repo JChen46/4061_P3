@@ -231,7 +231,7 @@ void * dispatch(void *arg) {
 			char buf[BUFF_SIZE];
 			// Get request from the client
 			if (get_request(fd, buf) != 0) {
-				printf("couldn't handle request for %s", buf);
+				printf("couldn't handle request for \"%s\"\n", buf);
 			}
 			else {
 				//printf("got request: %s\n", buf);
@@ -287,11 +287,14 @@ void * worker(void *arg) {
 		if (cache_index != -1) {
 			strcpy(christmas, "HIT");
 			size = cache[cache_index].len;
-			return_result(req.fd, getContentType(req.request), cache[cache_index].content, size);
+			if (return_result(req.fd, getContentType(req.request), cache[cache_index].content, size)) {
+				printf("failed to return result\n");
+				continue;
+			}
 		}
 		else {
 			if ((size = sizeOfFile(req.request)) == -1) {
-				printf("couldn't find file: %s\n", req.request);
+				printf("couldn't find file: \"%s\"\n", req.request);
 				strcpy(error_buf, "couldn't find file.");
 				error = 1;
 				return_error(req.fd, error_buf);
