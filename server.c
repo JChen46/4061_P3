@@ -13,6 +13,7 @@
 #include "util.h"
 #include <stdbool.h>
 #include <signal.h>
+#include <limits.h>
 
 #define MAX_THREADS 100
 #define MAX_QLEN 100
@@ -47,6 +48,7 @@ typedef struct cache_entry {
 } cache_entry_t;
 
 /* ************************************ Queue methods ********************************/
+// prints queue off in a list listing off size, then each element's fd and request string
 void printQueue(request_queue_t q) {
 	printf("--- print ---\n");
 	printf("size: %d\n", q.size);
@@ -57,6 +59,7 @@ void printQueue(request_queue_t q) {
 	printf("-------------\n");
 }
 
+// allocates entire queue's memory sets capacity, and 
 void initQueue(request_queue_t *q, int capacity) {
 	q->arr = malloc(capacity * sizeof(request_t));
 	q->capacity = capacity;
@@ -140,7 +143,7 @@ void addIntoCache(char *request, char *content, int len){
 	int evict_line = 0;
 	int i;
 	for (i = 0; i < cache_size; i++){
-		if cache[i].lru < evict_lru){
+		if (cache[i].lru < evict_lru){
 			evict_line = i;
 			evict_lru = cache[i].lru;
 		}
@@ -252,7 +255,7 @@ void * dispatch(void *arg) {
 			char buf[BUFF_SIZE];
 			// Get request from the client
 			if (get_request(fd, buf) != 0) {
-				printf("couldn't handle request for %s", buf);
+				printf("couldn't handle request for \"%s\"\n", buf);
 			}
 			else {
 				//printf("got request: %s\n", buf);
@@ -308,11 +311,13 @@ void * worker(void *arg) {
 		if (cache_index != -1) {
 			strcpy(christmas, "HIT");
 			size = cache[cache_index].len;
-			return_result(req.fd, getContentType(req.request), cache[cache_index].content, size);
+			if (return_result(req.fd, getContentType(req.request), cache[cache_index].content, size)) {
+				continue;
+			}
 		}
 		else {
 			if ((size = sizeOfFile(req.request)) == -1) {
-				printf("couldn't find file: %s\n", req.request);
+				printf("couldn't find file: \"%s\"\n", req.request);
 				strcpy(error_buf, "couldn't find file.");
 				error = 1;
 				return_error(req.fd, error_buf);
