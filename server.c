@@ -237,13 +237,13 @@ void * dispatch(void *arg) {
 				//printf("got request: %s\n", buf);
 				request_t temp;
 				temp.fd = fd;
-				temp.id = request_counter;
 				removeLeadingSlash(buf, temp.request);
 				// Add the request into the queue
 				pthread_mutex_lock(&req_q_mutex);
 					if (isQueueFull(req_q)) {
 						pthread_cond_wait(&req_q_free_slot, &req_q_mutex);
 					}
+					temp.id = request_counter;
 					enqueue(&req_q, temp);
 					pthread_cond_signal(&req_q_full_slot);
 				pthread_mutex_unlock(&req_q_mutex);
