@@ -288,7 +288,6 @@ void * worker(void *arg) {
 			strcpy(christmas, "HIT");
 			size = cache[cache_index].len;
 			if (return_result(req.fd, getContentType(req.request), cache[cache_index].content, size)) {
-				printf("failed to return result\n");
 				continue;
 			}
 		}
