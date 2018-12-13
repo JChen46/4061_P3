@@ -130,7 +130,9 @@ void addIntoCache(char *request, char *content, int len){
 	cache[cache_counter].content = malloc(len);
 	cache[cache_counter].len = len;
 	strcpy(cache[cache_counter].request, request);
+	cache[cache_counter].request[strlen(request)] = '\0';
 	strcpy(cache[cache_counter].content, content);
+	cache[cache_counter].content[strlen(content)] = '\0';
 	cache_counter = (cache_counter + 1) % cache_size;
 }
 
