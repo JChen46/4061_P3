@@ -353,7 +353,7 @@ void * worker(void *arg) {
   return NULL;
 }
 /**********************************************************************************/
-
+// sig handler for catching ^c. ^c will still exit program but will close the fp and delete queue/cache first
 void terminate(int signo){
 	deleteQueue(&req_q);
 	printf("\n--queue deleted--\n");
