@@ -96,6 +96,7 @@ static request_queue_t req_q;
 static pthread_mutex_t req_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t req_q_free_slot = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t req_q_full_slot = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
 static cache_entry_t *cache;
 static FILE *fp;
 
@@ -277,7 +278,9 @@ void * worker(void *arg) {
 
     // Get the data from the disk or the cache
 		char christmas[6];
+		pthread_mutex_lock(&cache_mutex);
 		int cache_index = getCacheIndex(req.request);
+		pthread_mutex_unlock(&cache_mutex);
 		int size;
 		int error = 0;
 		char error_buf[BUFF_SIZE];
@@ -304,7 +307,9 @@ void * worker(void *arg) {
 				else {
 					strcpy(christmas, "MISS");
 					return_result(req.fd, getContentType(req.request), buf, size);
+					pthread_mutex_lock(&cache_mutex);
 					addIntoCache(req.request, buf, size);
+					pthread_mutex_unlock(&cache_mutex);
 				}
 			}
 		}
