@@ -48,7 +48,8 @@ typedef struct cache_entry {
 void printQueue(request_queue_t q) {
 	printf("--- print ---\n");
 	printf("size: %d\n", q.size);
-	for (int i = q.front; i != q.rear; i = (i + 1) % q.capacity) {
+	int i;
+	for (i = q.front; i != q.rear; i = (i + 1) % q.capacity) {
 		printf("%d: %d, %s\n", i, q.arr[i].fd, q.arr[i].request);
 	}
 	printf("-------------\n");
@@ -130,9 +131,7 @@ void addIntoCache(char *request, char *content, int len){
 	cache[cache_counter].content = malloc(len);
 	cache[cache_counter].len = len;
 	strcpy(cache[cache_counter].request, request);
-	cache[cache_counter].request[strlen(request)] = '\0';
-	strcpy(cache[cache_counter].content, content);
-	cache[cache_counter].content[strlen(content)] = '\0';
+	memcpy(cache[cache_counter].content, content, len);
 	cache_counter = (cache_counter + 1) % cache_size;
 }
 
@@ -155,7 +154,8 @@ void initCache(int size){
 // removes leading slash
 void removeLeadingSlash(char *in_request, char *request) {
 	size_t str_len = strlen(in_request) + 1;
-	for (int i = 1; i < str_len; i++) {
+	int i;
+	for (i = 1; i < str_len; i++) {
 		request[i - 1] = in_request[i];
 	}
 }
@@ -426,7 +426,8 @@ int main(int argc, char **argv) {
 
   // Create dispatcher and worker threads
 	pthread_t dispatch_threads[num_dispatcher];
-	for (int i = 0; i < num_dispatcher; i++) {
+	int i;
+	for (i = 0; i < num_dispatcher; i++) {
 		if (pthread_create(&dispatch_threads[i], NULL, dispatch, (void*)&i)) {
 			printf("error creating dispatcher thread %d\n", i);
 			return -1;
@@ -438,7 +439,7 @@ int main(int argc, char **argv) {
 	}
 
 	pthread_t worker_threads[num_workers];
-	for (int i = 0; i < num_workers; i++) {
+	for (i = 0; i < num_workers; i++) {
 		if (pthread_create(&worker_threads[i], NULL, worker, (void*)&i)) {
 			printf("error creating worker thread %d\n", i);
 			return -1;
@@ -454,6 +455,8 @@ int main(int argc, char **argv) {
 	act.sa_handler = terminate;
 	sigfillset(&act.sa_mask);
 	sigaction(SIGINT, &act, NULL);
+
+	printf("server started on port %d\n", port);
 
 	//keep blocking until ^c, then process cleans up and exits
 	while(1);
