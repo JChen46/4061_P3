@@ -13,6 +13,7 @@
 #include "util.h"
 #include <stdbool.h>
 #include <signal.h>
+#include <limits.h>
 
 #define MAX_THREADS 100
 #define MAX_QLEN 100
@@ -47,6 +48,7 @@ typedef struct cache_entry {
 } cache_entry_t;
 
 /* ************************************ Queue methods ********************************/
+// prints queue off in a list listing off size, then each element's fd and request string
 void printQueue(request_queue_t q) {
 	printf("--- print ---\n");
 	printf("size: %d\n", q.size);
@@ -57,6 +59,7 @@ void printQueue(request_queue_t q) {
 	printf("-------------\n");
 }
 
+// allocates entire queue's memory sets capacity, and 
 void initQueue(request_queue_t *q, int capacity) {
 	q->arr = malloc(capacity * sizeof(request_t));
 	q->capacity = capacity;
@@ -140,7 +143,7 @@ void addIntoCache(char *request, char *content, int len){
 	int evict_line = 0;
 	int i;
 	for (i = 0; i < cache_size; i++){
-		if cache[i].lru < evict_lru){
+		if (cache[i].lru < evict_lru){
 			evict_line = i;
 			evict_lru = cache[i].lru;
 		}
